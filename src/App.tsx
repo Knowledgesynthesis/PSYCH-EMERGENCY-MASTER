@@ -1,49 +1,60 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from './contexts/ThemeContext';
-import Navigation from './components/Navigation';
+import { lazy, Suspense } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import Layout from './components/Layout';
 import Home from './pages/Home';
-import SuicideRisk from './pages/SuicideRisk';
-import Agitation from './pages/Agitation';
-import Substances from './pages/Substances';
-import Psychosis from './pages/Psychosis';
-import Mania from './pages/Mania';
-import Catatonia from './pages/Catatonia';
-import SerotoninNMS from './pages/SerotoninNMS';
-import Delirium from './pages/Delirium';
-import Capacity from './pages/Capacity';
-import Cases from './pages/Cases';
-import Assessment from './pages/Assessment';
-import Glossary from './pages/Glossary';
-import Settings from './pages/Settings';
+import { MODULES } from './content/modules';
+import { ProgressProvider } from './lib/progress';
+import { ThemeProvider } from './lib/theme';
 
-function App() {
+const ModulePage = lazy(() => import('./pages/ModulePage'));
+const Cases = lazy(() => import('./pages/Cases'));
+const Quiz = lazy(() => import('./pages/Quiz'));
+const Flashcards = lazy(() => import('./pages/Flashcards'));
+const Tools = lazy(() => import('./pages/Tools'));
+const Glossary = lazy(() => import('./pages/Glossary'));
+const Search = lazy(() => import('./pages/Search'));
+const About = lazy(() => import('./pages/About'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+
+function Loading() {
   return (
-    <ThemeProvider>
-      <Router>
-        <div className="min-h-screen">
-          <Navigation />
-          <main className="pb-20">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/suicide-risk" element={<SuicideRisk />} />
-              <Route path="/agitation" element={<Agitation />} />
-              <Route path="/substances" element={<Substances />} />
-              <Route path="/psychosis" element={<Psychosis />} />
-              <Route path="/mania" element={<Mania />} />
-              <Route path="/catatonia" element={<Catatonia />} />
-              <Route path="/serotonin-nms" element={<SerotoninNMS />} />
-              <Route path="/delirium" element={<Delirium />} />
-              <Route path="/capacity" element={<Capacity />} />
-              <Route path="/cases" element={<Cases />} />
-              <Route path="/assessment" element={<Assessment />} />
-              <Route path="/glossary" element={<Glossary />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </main>
-        </div>
-      </Router>
-    </ThemeProvider>
+    <div className="flex min-h-[50vh] items-center justify-center" role="status" aria-live="polite">
+      <span className="h-8 w-8 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
+      <span className="sr-only">Loading…</span>
+    </div>
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider>
+      <ProgressProvider>
+        <BrowserRouter>
+          <Layout>
+            <Suspense fallback={<Loading />}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                {MODULES.map((m) => (
+                  <Route key={m.id} path={m.path} element={<ModulePage module={m} />} />
+                ))}
+                <Route path="/cases" element={<Cases />} />
+                <Route path="/cases/:caseId" element={<Cases />} />
+                <Route path="/quiz" element={<Quiz />} />
+                <Route path="/flashcards" element={<Flashcards />} />
+                <Route path="/tools" element={<Tools />} />
+                <Route path="/tools/:toolId" element={<Tools />} />
+                <Route path="/glossary" element={<Glossary />} />
+                <Route path="/search" element={<Search />} />
+                <Route path="/about" element={<About />} />
+                {/* v1 URLs */}
+                <Route path="/assessment" element={<Navigate to="/quiz" replace />} />
+                <Route path="/settings" element={<Navigate to="/about" replace />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </Layout>
+        </BrowserRouter>
+      </ProgressProvider>
+    </ThemeProvider>
+  );
+}

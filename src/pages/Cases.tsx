@@ -1,445 +1,203 @@
-import { useState } from 'react';
-import ModuleLayout from '../components/ModuleLayout';
-import { FileText, ChevronRight, RotateCcw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { Award, CheckCircle2, ChevronRight, ClipboardList, RotateCcw, XCircle } from 'lucide-react';
+import { CASES } from '../content/cases';
+import { moduleById } from '../content/modules';
+import type { ClinicalCase } from '../content/types';
+import { Page, PageHeader } from '../components/Layout';
+import { Bullets, Chip } from '../components/ui';
+import { useProgress } from '../lib/progress';
+import { optionOrder } from '../lib/shuffle';
 
-interface CaseStep {
-  question: string;
-  options: {
-    text: string;
-    feedback: string;
-    isCorrect?: boolean;
-    next?: number;
-  }[];
+export default function Cases() {
+  const { caseId } = useParams();
+  const selected = CASES.find((c) => c.id === caseId);
+  if (caseId && selected) return <CaseRunner key={selected.id} c={selected} />;
+  return <CaseList />;
 }
 
-interface CaseScenario {
-  id: string;
-  title: string;
-  category: string;
-  presentation: string;
-  steps: CaseStep[];
+function CaseList() {
+  const { state } = useProgress();
+  return (
+    <Page wide>
+      <PageHeader eyebrow="Practice" title="Decision cases">
+        Each case unfolds as you decide. Wrong turns show you the consequence and let you try again; your score counts first attempts only.
+      </PageHeader>
+      <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {CASES.map((c) => {
+          const mod = moduleById(c.module);
+          const stat = state.cases[c.id];
+          return (
+            <li key={c.id}>
+              <Link to={`/cases/${c.id}`} className="card group flex h-full flex-col gap-3 !p-4 transition-shadow hover:shadow-md">
+                <span className="flex items-center justify-between gap-2">
+                  {mod && <Chip tone="info">{mod.short}</Chip>}
+                  {stat ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                      <Award size={14} aria-hidden /> Best {stat.best}/{stat.total}
+                    </span>
+                  ) : (
+                    <span className="text-xs muted">{c.steps.length} decisions</span>
+                  )}
+                </span>
+                <span className="font-bold group-hover:text-sky-700 dark:group-hover:text-sky-300">{c.title}</span>
+                <span className="line-clamp-3 text-sm muted">{c.vignette}</span>
+                <span className="mt-auto inline-flex items-center text-sm font-semibold text-sky-700 dark:text-sky-300">
+                  {stat ? 'Replay' : 'Start'} <ChevronRight size={16} aria-hidden />
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </Page>
+  );
 }
 
-const cases: CaseScenario[] = [
-  {
-    id: 'case-1',
-    title: 'Agitated Patient in ED',
-    category: 'Agitation',
-    presentation: 'A 32-year-old male is brought to the ED by police after causing a disturbance at a convenience store. He is pacing, shouting, and appears suspicious of staff. Vital signs: BP 145/92, HR 110, T 37.2°C, RR 20. Pupils are dilated.',
-    steps: [
-      {
-        question: 'What is your first priority?',
-        options: [
-          {
-            text: 'Administer haloperidol immediately',
-            feedback: 'Not yet. Safety assessment and de-escalation should come first. You also need more information about potential substances.',
-            next: 0
-          },
-          {
-            text: 'Ensure safety and begin verbal de-escalation',
-            feedback: 'Correct! Safety is always the first priority. Maintain adequate distance, ensure exit routes, and attempt calm, non-threatening communication.',
-            isCorrect: true,
-            next: 1
-          },
-          {
-            text: 'Obtain detailed psychiatric history',
-            feedback: 'Not practical when patient is agitated and potentially dangerous. Stabilize first, gather history later.',
-            next: 0
-          }
-        ]
-      },
-      {
-        question: 'The patient refuses to calm down and states "they\'re all trying to poison me." What should you consider?',
-        options: [
-          {
-            text: 'This is clearly paranoid schizophrenia',
-            feedback: 'Too early to diagnose. You must rule out medical and substance-induced causes first, especially given dilated pupils and tachycardia.',
-            next: 1
-          },
-          {
-            text: 'Order urine drug screen and consider stimulant intoxication',
-            feedback: 'Excellent thinking! Dilated pupils, tachycardia, paranoia, and agitation are classic for stimulant intoxication (cocaine, methamphetamine). Medical workup is essential.',
-            isCorrect: true,
-            next: 2
-          },
-          {
-            text: 'Apply physical restraints',
-            feedback: 'Premature. You should exhaust verbal de-escalation and rule out medical causes. Restraints are a last resort.',
-            next: 1
-          }
-        ]
-      },
-      {
-        question: 'Urine drug screen returns positive for methamphetamine. Patient remains agitated. What is the best pharmacologic intervention?',
-        options: [
-          {
-            text: 'Lorazepam (benzodiazepine)',
-            feedback: 'Correct! Benzodiazepines are first-line for stimulant-induced agitation. They address both agitation and cardiovascular effects.',
-            isCorrect: true,
-            next: 3
-          },
-          {
-            text: 'Haloperidol (typical antipsychotic)',
-            feedback: 'Risky in stimulant intoxication - can lower seizure threshold. Benzodiazepines are safer and more effective.',
-            next: 2
-          },
-          {
-            text: 'Propranolol (beta-blocker)',
-            feedback: 'Contraindicated! Beta-blockers can cause unopposed alpha-stimulation, worsening hypertension.',
-            next: 2
-          }
-        ]
-      },
-      {
-        question: 'After treatment, what disposition is most appropriate?',
-        options: [
-          {
-            text: 'Discharge home once calm',
-            feedback: 'Not safe yet. Patient needs observation for recurrent agitation (long half-life of methamphetamine) and assessment when sober.',
-            next: 3
-          },
-          {
-            text: 'Medical observation until sober, then psychiatric evaluation',
-            feedback: 'Correct! Extended observation is needed. Once sober, assess for underlying psychiatric illness vs pure substance-induced psychosis. Provide substance use resources.',
-            isCorrect: true,
-            next: -1
-          },
-          {
-            text: 'Immediate psychiatric admission',
-            feedback: 'Premature. Need to determine if symptoms are substance-induced or represent primary psychiatric illness. Reassess when sober.',
-            next: 3
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'case-2',
-    title: 'Confused Elderly Patient',
-    category: 'Delirium',
-    presentation: 'An 78-year-old woman with dementia is brought from nursing home for "acting strange." Normally pleasant, she is now confused, picking at her clothes, and doesn\'t recognize her daughter. Started 2 days ago. Vital signs: BP 118/72, HR 98, T 38.4°C, RR 22.',
-    steps: [
-      {
-        question: 'What is the most likely diagnosis?',
-        options: [
-          {
-            text: 'Worsening dementia',
-            feedback: 'Unlikely. Dementia progresses slowly. Acute change suggests delirium superimposed on dementia.',
-            next: 0
-          },
-          {
-            text: 'Delirium (likely infectious cause given fever)',
-            feedback: 'Correct! Acute onset, fluctuating course, and fever strongly suggest delirium. In elderly with dementia, infection is a common trigger.',
-            isCorrect: true,
-            next: 1
-          },
-          {
-            text: 'Late-onset psychosis',
-            feedback: 'Very unlikely with this presentation. Acute confusion with fever in elderly almost always indicates delirium.',
-            next: 0
-          }
-        ]
-      },
-      {
-        question: 'What is your diagnostic workup?',
-        options: [
-          {
-            text: 'CT head only',
-            feedback: 'Insufficient. While brain imaging may be needed, you must also look for systemic causes, especially infection.',
-            next: 1
-          },
-          {
-            text: 'Complete workup: CBC, CMP, UA with culture, CXR, consider blood cultures',
-            feedback: 'Excellent! This covers the most common causes: UTI, pneumonia, sepsis. Urinalysis is especially important in elderly women.',
-            isCorrect: true,
-            next: 2
-          },
-          {
-            text: 'Psychiatric evaluation',
-            feedback: 'Not appropriate yet. This is a medical emergency requiring medical workup first.',
-            next: 1
-          }
-        ]
-      },
-      {
-        question: 'Urinalysis shows pyuria and bacteria. Diagnosis: UTI with delirium. Patient is trying to pull out IV. What is the best management approach?',
-        options: [
-          {
-            text: 'Haloperidol 5mg IM',
-            feedback: 'Dose is too high for elderly patient, and medication should be last resort. Try non-pharmacologic interventions first.',
-            next: 2
-          },
-          {
-            text: 'Non-pharmacologic: reorientation, family presence, treat infection',
-            feedback: 'Correct! Treating the underlying infection is key. Family presence, gentle reorientation, and minimizing restraints are ideal. Medication only if necessary for safety.',
-            isCorrect: true,
-            next: -1
-          },
-          {
-            text: 'Lorazepam for agitation',
-            feedback: 'Avoid benzodiazepines in delirium (except alcohol/benzo withdrawal) - they can worsen confusion.',
-            next: 2
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'case-3',
-    title: 'Suicidal Ideation',
-    category: 'Suicide Risk',
-    presentation: 'A 45-year-old man presents to ED stating "I can\'t take it anymore." Recently divorced, lost job, reports feeling hopeless. Endorses passive suicidal ideation. No prior attempts. Denies current plan. Lives alone.',
-    steps: [
-      {
-        question: 'What is your initial approach?',
-        options: [
-          {
-            text: 'Discharge with outpatient referral',
-            feedback: 'Too hasty. Need more thorough assessment of risk factors, protective factors, and current intent.',
-            next: 0
-          },
-          {
-            text: 'Conduct comprehensive suicide risk assessment',
-            feedback: 'Correct! Explore ideation frequency, plan, intent, means access, risk factors, protective factors, and prior attempts.',
-            isCorrect: true,
-            next: 1
-          },
-          {
-            text: 'Immediate psychiatric admission',
-            feedback: 'May not be necessary. Complete full assessment first to determine appropriate level of care.',
-            next: 0
-          }
-        ]
-      },
-      {
-        question: 'Further assessment reveals: daily SI for 2 weeks, no specific plan, has firearm at home, willing to engage in safety planning. What is the most concerning finding?',
-        options: [
-          {
-            text: 'Access to firearm',
-            feedback: 'Correct! Access to lethal means is a critical modifiable risk factor. This must be addressed immediately.',
-            isCorrect: true,
-            next: 2
-          },
-          {
-            text: 'Recent divorce and job loss',
-            feedback: 'These are significant stressors and risk factors, but access to lethal means is the most immediately dangerous.',
-            next: 1
-          },
-          {
-            text: 'Living alone',
-            feedback: 'Concerning for lack of support, but access to firearms is more immediately dangerous.',
-            next: 1
-          }
-        ]
-      },
-      {
-        question: 'What is the most appropriate disposition?',
-        options: [
-          {
-            text: 'Safety plan with firearm removal, outpatient follow-up in 2-3 days, emergency contacts',
-            feedback: 'Correct! Patient has no active plan, willing to engage, and accept help. With means restriction and close follow-up, outpatient management is reasonable. Ensure firearm is removed before discharge.',
-            isCorrect: true,
-            next: -1
-          },
-          {
-            text: 'Psychiatric hospitalization',
-            feedback: 'May be overly restrictive if patient is cooperative and protective factors present. Consider least restrictive effective option.',
-            next: 2
-          },
-          {
-            text: 'Discharge with crisis hotline number only',
-            feedback: 'Insufficient given multiple risk factors. Needs concrete safety plan, means restriction, and definite follow-up.',
-            next: 2
-          }
-        ]
-      }
-    ]
-  }
-];
+type StepResult = { firstTry: boolean; tried: number[] };
 
-const Cases = () => {
-  const [selectedCase, setSelectedCase] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+function CaseRunner({ c }: { c: ClinicalCase }) {
+  const { finishCase } = useProgress();
+  const [round, setRound] = useState(0);
+  // Re-shuffle options on each replay so position can't be memorized.
+  const orders = useMemo(() => c.steps.map((s) => optionOrder(s.options.length)), [c, round]);
+  const [stepIdx, setStepIdx] = useState(0);
+  const [results, setResults] = useState<StepResult[]>([]);
+  const [finished, setFinished] = useState(false);
+  const mod = moduleById(c.module);
 
-  const currentCase = cases.find(c => c.id === selectedCase);
+  const step = c.steps[stepIdx];
+  const result = results[stepIdx] ?? { firstTry: false, tried: [] };
+  const solved = result.tried.some((i) => step.options[i].correct);
+  const score = results.filter((r) => r.firstTry).length;
 
-  const handleOptionSelect = (optionIndex: number) => {
-    setSelectedOption(optionIndex);
+  const choose = (opt: number) => {
+    if (solved || result.tried.includes(opt)) return;
+    const tried = [...result.tried, opt];
+    const next = [...results];
+    next[stepIdx] = { firstTry: result.tried.length === 0 && step.options[opt].correct, tried };
+    setResults(next);
   };
 
-  const handleNext = () => {
-    if (selectedOption === null || !currentCase) return;
-
-    const nextStep = currentCase.steps[currentStep].options[selectedOption].next;
-
-    if (nextStep === -1) {
-      // Case complete
-      setCurrentStep(0);
-      setSelectedOption(null);
-      setSelectedCase(null);
-    } else if (nextStep !== undefined) {
-      setCurrentStep(nextStep);
-      setSelectedOption(null);
+  const advance = () => {
+    if (stepIdx < c.steps.length - 1) {
+      setStepIdx(stepIdx + 1);
+      return;
     }
+    finishCase(c.id, score, c.steps.length);
+    setFinished(true);
   };
 
-  const handleReset = () => {
-    setCurrentStep(0);
-    setSelectedOption(null);
+  const restart = () => {
+    setRound((r) => r + 1);
+    setStepIdx(0);
+    setResults([]);
+    setFinished(false);
   };
 
-  const handleBackToCases = () => {
-    setSelectedCase(null);
-    setCurrentStep(0);
-    setSelectedOption(null);
-  };
-
-  if (!selectedCase) {
-    return (
-      <ModuleLayout
-        title="Interactive Cases"
-        description="Practice clinical reasoning with branching case scenarios"
-      >
-        <div className="space-y-6">
-          <div className="card bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600">
-            <h3 className="font-semibold mb-2">How It Works</h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              These interactive cases present realistic psychiatric emergencies. You'll make decisions
-              and receive immediate feedback. Cases branch based on your choices, simulating real clinical reasoning.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cases.map(caseItem => (
-              <button
-                key={caseItem.id}
-                onClick={() => setSelectedCase(caseItem.id)}
-                className="card hover:shadow-lg transition-shadow text-left group"
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <FileText className="text-primary-500" size={24} />
-                  <span className="px-2 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded text-xs">
-                    {caseItem.category}
-                  </span>
-                </div>
-                <h3 className="font-semibold text-lg mb-2">{caseItem.title}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
-                  {caseItem.presentation}
-                </p>
-                <div className="mt-4 flex items-center text-primary-600 dark:text-primary-400 text-sm group-hover:gap-2 transition-all">
-                  Start Case <ChevronRight size={16} />
-                </div>
-              </button>
-            ))}
-          </div>
-
-          <div className="card bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-600">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              <strong>Note:</strong> These cases are for educational purposes only and should not replace
-              clinical judgment or formal training.
-            </p>
-          </div>
-        </div>
-      </ModuleLayout>
-    );
-  }
-
-  if (!currentCase) {
-    return null;
-  }
+  const updates = c.steps.slice(0, stepIdx + 1).map((s, i) => ({ i, text: s.update })).filter((u) => u.text);
 
   return (
-    <ModuleLayout
-      title={currentCase.title}
-      description={currentCase.category}
-    >
-      <div className="space-y-6">
-        {/* Presentation */}
-        {currentStep === 0 && selectedOption === null && (
-          <div className="card bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600">
-            <h3 className="font-semibold mb-2">Case Presentation</h3>
-            <p className="text-gray-700 dark:text-gray-300">{currentCase.presentation}</p>
-          </div>
-        )}
+    <Page>
+      <Link to="/cases" className="mb-4 inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:underline dark:text-sky-300">
+        ← All cases
+      </Link>
+      <PageHeader eyebrow={mod ? `Case · ${mod.title}` : 'Case'} title={c.title} />
 
-        {/* Current Question */}
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-lg">
-              Step {currentStep + 1} of {currentCase.steps.length}
-            </h3>
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
-            >
-              <RotateCcw size={16} />
-              Reset
-            </button>
-          </div>
-
-          <p className="text-gray-800 dark:text-gray-200 mb-4 font-medium">
-            {currentCase.steps[currentStep].question}
-          </p>
-
-          <div className="space-y-3">
-            {currentCase.steps[currentStep].options.map((option, index) => (
-              <div key={index}>
-                <button
-                  onClick={() => handleOptionSelect(index)}
-                  className={`w-full text-left p-4 rounded-lg transition-colors ${
-                    selectedOption === index
-                      ? option.isCorrect
-                        ? 'bg-green-100 dark:bg-green-900/30 border-2 border-green-500'
-                        : 'bg-red-100 dark:bg-red-900/30 border-2 border-red-500'
-                      : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 border-2 border-transparent'
-                  }`}
-                  disabled={selectedOption !== null}
-                >
-                  {option.text}
-                </button>
-
-                {selectedOption === index && (
-                  <div className={`mt-2 p-4 rounded-lg ${
-                    option.isCorrect
-                      ? 'bg-green-50 dark:bg-green-900/20'
-                      : 'bg-red-50 dark:bg-red-900/20'
-                  }`}>
-                    <p className={`text-sm ${
-                      option.isCorrect
-                        ? 'text-green-800 dark:text-green-200'
-                        : 'text-red-800 dark:text-red-200'
-                    }`}>
-                      {option.feedback}
-                    </p>
-                  </div>
-                )}
-              </div>
+      <section className="card mb-4 border-sky-300 dark:border-sky-500/30">
+        <p className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-300">
+          <ClipboardList size={14} aria-hidden /> {c.setting}
+        </p>
+        <p className="leading-relaxed">{c.vignette}</p>
+        {updates.length > 0 && (
+          <ol className="mt-3 space-y-2 border-l-2 border-amber-400 pl-3">
+            {updates.map((u) => (
+              <li key={u.i} className="animate-fade-in text-sm">
+                <span className="mr-1 font-semibold text-amber-700 dark:text-amber-300">Update:</span>
+                {u.text}
+              </li>
             ))}
-          </div>
+          </ol>
+        )}
+      </section>
 
-          {selectedOption !== null && (
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={handleNext}
-                className="btn-primary"
-              >
-                {currentCase.steps[currentStep].options[selectedOption].next === -1
-                  ? 'Complete Case'
-                  : 'Continue'}
-              </button>
-              <button
-                onClick={handleBackToCases}
-                className="btn-secondary"
-              >
-                Back to Cases
+      {finished ? (
+        <section className="card animate-fade-in">
+          <div className="mb-4 text-center">
+            <p className="text-4xl font-black tabular-nums text-sky-600 dark:text-sky-400">
+              {score}/{c.steps.length}
+            </p>
+            <p className="text-sm muted">decisions correct on the first attempt</p>
+          </div>
+          <h2 className="mb-2 font-bold">Debrief</h2>
+          <Bullets items={c.debrief} className="text-sm text-slate-700 dark:text-slate-300" />
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button type="button" className="btn-primary" onClick={restart}>
+              <RotateCcw size={16} /> Replay
+            </button>
+            {mod && (
+              <Link to={mod.path} className="btn-ghost">
+                Review {mod.short}
+              </Link>
+            )}
+            <Link to="/cases" className="btn-ghost">
+              Next case
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <section className="card">
+          <div className="mb-3 flex items-center justify-between text-sm">
+            <span className="font-medium muted">
+              Decision {stepIdx + 1} of {c.steps.length}
+            </span>
+            <span className="flex gap-1" aria-hidden>
+              {c.steps.map((_, i) => (
+                <span
+                  key={i}
+                  className={`h-2 w-6 rounded-full ${
+                    i < stepIdx ? (results[i]?.firstTry ? 'bg-emerald-500' : 'bg-amber-500') : i === stepIdx ? 'bg-sky-500' : 'bg-slate-200 dark:bg-ink-700'
+                  }`}
+                />
+              ))}
+            </span>
+          </div>
+          <p className="mb-4 text-lg font-semibold">{step.prompt}</p>
+          <div className="space-y-2">
+            {orders[stepIdx].map((oi) => {
+              const o = step.options[oi];
+              const tried = result.tried.includes(oi);
+              const cls = tried ? (o.correct ? 'option-correct' : 'option-wrong') : solved ? 'option-dim' : 'option-idle';
+              return (
+                <div key={oi}>
+                  <button type="button" onClick={() => choose(oi)} disabled={solved || tried} className={`option flex items-start gap-3 ${cls}`}>
+                    <span className="flex-1">{o.text}</span>
+                    {tried && (o.correct ? <CheckCircle2 size={20} className="shrink-0 text-emerald-600" aria-label="correct" /> : <XCircle size={20} className="shrink-0 text-rose-600" aria-label="incorrect" />)}
+                  </button>
+                  {tried && (
+                    <p
+                      className={`animate-fade-in mt-1.5 rounded-lg px-3 py-2 text-sm ${
+                        o.correct ? 'bg-emerald-50 text-emerald-950 dark:bg-emerald-500/10 dark:text-emerald-100' : 'bg-rose-50 text-rose-950 dark:bg-rose-500/10 dark:text-rose-100'
+                      }`}
+                      aria-live="polite"
+                    >
+                      {o.feedback}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {!solved && result.tried.length > 0 && <p className="mt-3 text-sm font-medium text-amber-700 dark:text-amber-300">Try another option.</p>}
+          {solved && (
+            <div className="mt-4 flex justify-end">
+              <button type="button" className="btn-primary" onClick={advance}>
+                {stepIdx < c.steps.length - 1 ? 'Continue' : 'Finish & debrief'} <ChevronRight size={16} />
               </button>
             </div>
           )}
-        </div>
-      </div>
-    </ModuleLayout>
+        </section>
+      )}
+    </Page>
   );
-};
-
-export default Cases;
+}
